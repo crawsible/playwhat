@@ -19,6 +19,10 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 		steamID, _ := resolveVanityURL(r.PostFormValue("steamname"))
 		fmt.Println("Your SteamID is...", steamID)
 
+		gamesList, _ := getOwnedGames(steamID)
+		fmt.Println("These are the games you own... ", gamesList)
+		fmt.Printf("You own %d games\n", len(gamesList))
+
 		http.Redirect(w, r, "/", http.StatusFound)
 	default:
 		http.NotFound(w, r)
@@ -58,6 +62,48 @@ func resolveVanityURL(steamName string) (string, error) {
 	}
 
 	return structuredResponse.Response.SteamID, nil
+}
+
+type Game struct {
+	Name     string
+	AppID    int
+	Playtime int `json:"playtime_forever"`
+}
+
+type GetOwnedGamesResponse struct {
+	Response struct {
+		Games []Game
+	}
+}
+
+func getOwnedGames(steamID string) ([]Game, error) {
+	values := url.Values{}
+	values.Add("steamid", url.QueryEscape(steamID))
+	values.Add("include_appinfo", "1")
+
+	getOwnedGamesEndpoint := generateSteamAPIURL("IPlayerService/GetOwnedGames/v0001", values, true)
+
+	resp, err := http.Get(getOwnedGamesEndpoint.String())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var body []byte
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println(string(body))
+
+	structuredResponse := &GetOwnedGamesResponse{}
+	err = json.Unmarshal(body, structuredResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return structuredResponse.Response.Games, nil
 }
 
 func generateSteamAPIURL(apiPath string, values url.Values, withKey bool) *url.URL {
