@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 )
+
+var templates = template.Must(template.ParseFiles("staticfiles/user_show.html"))
 
 func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Hello!")
@@ -16,17 +19,34 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		r.ParseForm()
 
-		steamID, _ := resolveVanityURL(r.PostFormValue("steamname"))
-		fmt.Println("Your SteamID is...", steamID)
+		u := User{SteamName: r.PostFormValue("steamname")}
+		u.fetchSteamID()
+		fmt.Println("Your SteamID is...", u.SteamID)
 
-		gamesList, _ := getOwnedGames(steamID)
-		fmt.Println("These are the games you own... ", gamesList)
-		fmt.Printf("You own %d games\n", len(gamesList))
+		u.fetchOwnedGames()
+		fmt.Println("These are the games you own... ", u.Games)
+		fmt.Printf("You own %d games\n", len(u.Games))
 
-		http.Redirect(w, r, "/", http.StatusFound)
+		templates.ExecuteTemplate(w, "user_show.html", u)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+type User struct {
+	SteamName string
+	SteamID   string
+	Games     []Game
+}
+
+func (u *User) fetchSteamID() (err error) {
+	u.SteamID, err = resolveVanityURL(u.SteamName)
+	return
+}
+
+func (u *User) fetchOwnedGames() (err error) {
+	u.Games, err = getOwnedGames(u.SteamID)
+	return
 }
 
 type ResolveVanityURLResponse struct {
