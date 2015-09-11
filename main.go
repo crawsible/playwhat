@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -70,11 +69,9 @@ func resolveVanityURL(steamName string) (string, error) {
 
 	resolveVanityURLEndpoint := generateSteamAPIURL("ISteamUser/ResolveVanityURL/v0001", values, true)
 	vanityURLResponse := &ResolveVanityURLResponse{}
-	if err := unmarshalSteamAPIResponse(resolveVanityURLEndpoint, vanityURLResponse); err != nil {
+	if err := decodeSteamAPIResponse(resolveVanityURLEndpoint, vanityURLResponse); err != nil {
 		return "", err
 	}
-
-	fmt.Printf("vanityURLResponse: %v\n", vanityURLResponse)
 
 	return vanityURLResponse.Response.SteamID, nil
 }
@@ -128,7 +125,7 @@ func getOwnedGames(steamID string) (Games, error) {
 
 	getOwnedGamesEndpoint := generateSteamAPIURL("IPlayerService/GetOwnedGames/v0001", values, true)
 	ownedGamesResponse := &GetOwnedGamesResponse{}
-	if err := unmarshalSteamAPIResponse(getOwnedGamesEndpoint, ownedGamesResponse); err != nil {
+	if err := decodeSteamAPIResponse(getOwnedGamesEndpoint, ownedGamesResponse); err != nil {
 		return nil, err
 	}
 
@@ -147,21 +144,14 @@ func generateSteamAPIURL(apiPath string, values url.Values, withKey bool) *url.U
 	return generatedURL
 }
 
-func unmarshalSteamAPIResponse(apiURL *url.URL, data interface{}) error {
+func decodeSteamAPIResponse(apiURL *url.URL, data interface{}) error {
 	r, err := http.Get(apiURL.String())
 	if err != nil {
 		return err
 	}
 	defer r.Body.Close()
 
-	var body []byte
-	body, err = ioutil.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(body))
-
-	err = json.Unmarshal(body, data)
+	err = json.NewDecoder(r.Body).Decode(data)
 	if err != nil {
 		return err
 	}
