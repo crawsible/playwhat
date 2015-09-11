@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 )
 
 var templates = template.Must(template.ParseFiles("staticfiles/user_show.html"))
@@ -24,6 +25,7 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Your SteamID is...", u.SteamID)
 
 		u.fetchOwnedGames()
+		sort.Sort(sort.Reverse(u.Games))
 		fmt.Println("These are the games you own... ", u.Games)
 		fmt.Printf("You own %d games\n", len(u.Games))
 
@@ -36,7 +38,7 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 type User struct {
 	SteamName string
 	SteamID   string
-	Games     []Game
+	Games     Games
 }
 
 func (u *User) fetchSteamID() (err error) {
@@ -104,13 +106,27 @@ func (g *Game) LogoURL() string {
 	)
 }
 
+type Games []Game
+
+func (gs Games) Len() int {
+	return len(gs)
+}
+
+func (gs Games) Less(i, j int) bool {
+	return gs[i].Playtime < gs[j].Playtime
+}
+
+func (gs Games) Swap(i, j int) {
+	gs[i], gs[j] = gs[j], gs[i]
+}
+
 type GetOwnedGamesResponse struct {
 	Response struct {
-		Games []Game
+		Games
 	}
 }
 
-func getOwnedGames(steamID string) ([]Game, error) {
+func getOwnedGames(steamID string) (Games, error) {
 	values := url.Values{}
 	values.Add("steamid", url.QueryEscape(steamID))
 	values.Add("include_appinfo", "1")
