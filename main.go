@@ -88,6 +88,20 @@ type Game struct {
 	Name     string
 	AppID    int
 	Playtime int `json:"playtime_forever"`
+
+	LogoFilename string `json:"img_logo_url"`
+}
+
+func (g *Game) LogoURL() string {
+	if g.AppID == 0 || g.LogoFilename == "" {
+		return "http://digilite.ca/wp-content/uploads/2013/07/squarespace-184x69.jpg"
+	}
+
+	return fmt.Sprintf(
+		"http://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg",
+		g.AppID,
+		g.LogoFilename,
+	)
 }
 
 type GetOwnedGamesResponse struct {
