@@ -21,10 +21,16 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
 		u := User{SteamName: r.PostFormValue("steamname")}
-		u.fetchSteamID()
+		if err := u.FetchSteamID(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		fmt.Println("Your SteamID is...", u.SteamID)
 
-		u.fetchOwnedGames()
+		if err := u.FetchOwnedGames(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		sort.Sort(sort.Reverse(u.Games))
 		fmt.Println("These are the games you own... ", u.Games)
 		fmt.Printf("You own %d games\n", len(u.Games))
@@ -41,12 +47,12 @@ type User struct {
 	Games     Games
 }
 
-func (u *User) fetchSteamID() (err error) {
+func (u *User) FetchSteamID() (err error) {
 	u.SteamID, err = resolveVanityURL(u.SteamName)
 	return
 }
 
-func (u *User) fetchOwnedGames() (err error) {
+func (u *User) FetchOwnedGames() (err error) {
 	u.Games, err = getOwnedGames(u.SteamID)
 	return
 }
@@ -54,6 +60,7 @@ func (u *User) fetchOwnedGames() (err error) {
 type ResolveVanityURLResponse struct {
 	Response struct {
 		SteamID string `json:"steamid"`
+		Success uint
 	}
 }
 
@@ -62,47 +69,34 @@ func resolveVanityURL(steamName string) (string, error) {
 	values.Add("vanityurl", url.QueryEscape(steamName))
 
 	resolveVanityURLEndpoint := generateSteamAPIURL("ISteamUser/ResolveVanityURL/v0001", values, true)
-
-	resp, err := http.Get(resolveVanityURLEndpoint.String())
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var body []byte
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
+	vanityURLResponse := &ResolveVanityURLResponse{}
+	if err := unmarshalSteamAPIResponse(resolveVanityURLEndpoint, vanityURLResponse); err != nil {
 		return "", err
 	}
 
-	fmt.Println(string(body))
+	fmt.Printf("vanityURLResponse: %v\n", vanityURLResponse)
 
-	structuredResponse := &ResolveVanityURLResponse{}
-	err = json.Unmarshal(body, structuredResponse)
-	if err != nil {
-		return "", err
-	}
-
-	return structuredResponse.Response.SteamID, nil
+	return vanityURLResponse.Response.SteamID, nil
 }
 
 type Game struct {
-	Name     string
-	AppID    int
-	Playtime int `json:"playtime_forever"`
-
-	LogoFilename string `json:"img_logo_url"`
+	Name                     string
+	AppID                    uint
+	Playtime                 uint   `json:"playtime_forever"`
+	LogoImageFilename        string `json:"img_logo_url"`
+	IconImageFilename        string `json:"img_icon_url"`
+	HasCommunityVisibleStats bool   `json:"has_community_visible_stats"`
 }
 
 func (g *Game) LogoURL() string {
-	if g.AppID == 0 || g.LogoFilename == "" {
+	if g.AppID == 0 || g.LogoImageFilename == "" {
 		return "http://digilite.ca/wp-content/uploads/2013/07/squarespace-184x69.jpg"
 	}
 
 	return fmt.Sprintf(
 		"http://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg",
 		g.AppID,
-		g.LogoFilename,
+		g.LogoImageFilename,
 	)
 }
 
@@ -122,6 +116,7 @@ func (gs Games) Swap(i, j int) {
 
 type GetOwnedGamesResponse struct {
 	Response struct {
+		GameCount uint `json:"game_count"`
 		Games
 	}
 }
@@ -132,28 +127,12 @@ func getOwnedGames(steamID string) (Games, error) {
 	values.Add("include_appinfo", "1")
 
 	getOwnedGamesEndpoint := generateSteamAPIURL("IPlayerService/GetOwnedGames/v0001", values, true)
-
-	resp, err := http.Get(getOwnedGamesEndpoint.String())
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var body []byte
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
+	ownedGamesResponse := &GetOwnedGamesResponse{}
+	if err := unmarshalSteamAPIResponse(getOwnedGamesEndpoint, ownedGamesResponse); err != nil {
 		return nil, err
 	}
 
-	fmt.Println(string(body))
-
-	structuredResponse := &GetOwnedGamesResponse{}
-	err = json.Unmarshal(body, structuredResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	return structuredResponse.Response.Games, nil
+	return ownedGamesResponse.Response.Games, nil
 }
 
 func generateSteamAPIURL(apiPath string, values url.Values, withKey bool) *url.URL {
@@ -166,6 +145,28 @@ func generateSteamAPIURL(apiPath string, values url.Values, withKey bool) *url.U
 
 	fmt.Println("the URL is...", generatedURL.String())
 	return generatedURL
+}
+
+func unmarshalSteamAPIResponse(apiURL *url.URL, data interface{}) error {
+	r, err := http.Get(apiURL.String())
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	var body []byte
+	body, err = ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(body))
+
+	err = json.Unmarshal(body, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
