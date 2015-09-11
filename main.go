@@ -11,7 +11,7 @@ import (
 	"sort"
 )
 
-var templates = template.Must(template.ParseFiles("staticfiles/user_show.html"))
+var templates = template.Must(template.ParseFiles("view/user_show.html"))
 
 func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Hello!")
@@ -169,7 +169,7 @@ func generateSteamAPIURL(apiPath string, values url.Values, withKey bool) *url.U
 }
 
 func main() {
-	http.Handle("/", http.FileServer(http.Dir("./staticfiles")))
+	http.Handle("/", http.FileServer(http.Dir("./view")))
 	http.HandleFunc("/user/create", userCreateHandler)
 
 	http.ListenAndServe(":8080", nil)
