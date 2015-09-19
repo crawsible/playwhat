@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"sort"
 
 	"github.com/crawsible/playwhat/steamapi"
@@ -15,6 +17,31 @@ type User struct {
 	SteamName string
 	SteamID   string
 	Games     Games
+}
+
+func (u *User) getSteamID() error {
+	steamIDCache := "./db/users/" + u.SteamName
+	if _, err := os.Stat(steamIDCache); !os.IsNotExist(err) {
+		fmt.Println("User ID cached!")
+		bytes, err := ioutil.ReadFile(steamIDCache)
+		if err != nil {
+			return err
+		}
+
+		u.SteamID = string(bytes)
+		return nil
+	}
+
+	fmt.Println("User ID not cached. Querying...")
+	resolveVanityURLResponse, err := steamapi.ResolveVanityURL(u.SteamName)
+	if err != nil {
+		return err
+	}
+
+	u.SteamID = resolveVanityURLResponse.Response.SteamID
+	fmt.Println("Your SteamID is...", u.SteamID)
+
+	return ioutil.WriteFile(steamIDCache, []byte(u.SteamID), 0755)
 }
 
 type Games []steamapi.Game
@@ -40,16 +67,13 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 		u := User{SteamName: r.PostFormValue("steamname")}
 
-		resolveVanityURLResponse, err := steamapi.ResolveVanityURL(u.SteamName)
-		if err != nil {
+		if err := u.getSteamID(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		u.SteamID = resolveVanityURLResponse.Response.SteamID
-		fmt.Println("Your SteamID is...", u.SteamID)
 
 		var getOwnedGamesResponse *steamapi.GetOwnedGamesResponse
-		getOwnedGamesResponse, err = steamapi.GetOwnedGames(u.SteamID)
+		getOwnedGamesResponse, err := steamapi.GetOwnedGames(u.SteamID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
