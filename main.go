@@ -1,14 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"sort"
 
 	"github.com/crawsible/playwhat/steamapi"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var userTemplates = template.Must(template.ParseFiles("view/user/show.html"))
@@ -21,19 +21,21 @@ type User struct {
 }
 
 func (u *User) getSteamID() error {
-	steamIDCache := "./db/users/" + u.SteamName
-	if _, err := os.Stat(steamIDCache); !os.IsNotExist(err) {
-		fmt.Println("User ID cached!")
-		bytes, err := ioutil.ReadFile(steamIDCache)
-		if err != nil {
-			return err
-		}
+	db, err := sql.Open("sqlite3", "./db/dev.sqlite3")
+	if err != nil {
+		return err
+	}
 
-		u.SteamID = string(bytes)
+	row := db.QueryRow("SELECT id, steam_id FROM users WHERE steam_name = ?", u.SteamName)
+	var id uint
+	if err := row.Scan(&id, &u.SteamID); err != nil || u.SteamID == "" {
+		fmt.Printf("err: %s", err.Error())
+		fmt.Println("User ID not cached. Querying...")
+	} else {
+		fmt.Println("User SteamID found in cache!")
 		return nil
 	}
 
-	fmt.Println("User ID not cached. Querying...")
 	resolveVanityURLResponse, err := steamapi.ResolveVanityURL(u.SteamName)
 	if err != nil {
 		return err
@@ -42,7 +44,21 @@ func (u *User) getSteamID() error {
 	u.SteamID = resolveVanityURLResponse.Response.SteamID
 	fmt.Println("Your SteamID is...", u.SteamID)
 
-	return ioutil.WriteFile(steamIDCache, []byte(u.SteamID), 0755)
+	var stmt *sql.Stmt
+	if id != 0 {
+		stmt, err = db.Prepare("UPDATE users SET steam_id = ? WHERE id = ?")
+		if err != nil {
+			fmt.Printf("Could not add steam_id to existing `users` record.")
+			return nil
+		}
+
+		_, err := stmt.Exec(u.SteamID, id)
+		return err
+	} else {
+		stmt, err = db.Prepare("INSERT INTO users(steam_name, steam_id) values(?, ?)")
+		_, err := stmt.Exec(u.SteamName, u.SteamID)
+		return err
+	}
 }
 
 type Games []steamapi.Game
