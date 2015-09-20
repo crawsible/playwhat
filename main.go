@@ -11,7 +11,8 @@ import (
 	"github.com/crawsible/playwhat/steamapi"
 )
 
-var templates = template.Must(template.ParseFiles("view/user_show.html"))
+var userTemplates = template.Must(template.ParseFiles("view/user/show.html"))
+var gameTemplates = template.Must(template.ParseFiles("view/game/show.html"))
 
 type User struct {
 	SteamName string
@@ -82,15 +83,20 @@ func userCreateHandler(w http.ResponseWriter, r *http.Request) {
 		sort.Sort(sort.Reverse(u.Games))
 		fmt.Println("These are the games you own... ", u.Games)
 
-		templates.ExecuteTemplate(w, "user_show.html", u)
+		userTemplates.ExecuteTemplate(w, "show.html", u)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
+func gameShowHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Game!")
+}
+
 func main() {
 	http.Handle("/", http.FileServer(http.Dir("./view")))
 	http.HandleFunc("/user/create", userCreateHandler)
+	http.HandleFunc("/user/game", gameShowHandler)
 
 	http.ListenAndServe(":8080", nil)
 }
