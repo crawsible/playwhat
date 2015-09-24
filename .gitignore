@@ -1,4 +1,4 @@
 *.swp
 playwhat
 credentials.sh
-db
+db/*.db

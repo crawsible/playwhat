@@ -1,0 +1,6 @@
+CREATE TABLE users (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+steam_name TEXT,
+steam_id TEXT
+);
+

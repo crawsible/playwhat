@@ -21,7 +21,7 @@ type User struct {
 }
 
 func (u *User) getSteamID() error {
-	db, err := sql.Open("sqlite3", "./db/dev.sqlite3")
+	db, err := sql.Open("sqlite3", "./db/dev.sqlite3.db")
 	if err != nil {
 		return err
 	}
