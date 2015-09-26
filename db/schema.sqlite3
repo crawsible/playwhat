@@ -3,4 +3,18 @@ id INTEGER PRIMARY KEY AUTOINCREMENT,
 steam_name TEXT,
 steam_id TEXT
 );
+CREATE TABLE user_game_ownerships (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+user_id INTEGER,
+game_id INTEGER
+);
+CREATE TABLE games (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+name TEXT,
+app_id INTEGER,
+playtime INTEGER,
+logo_image_filename TEXT,
+icon_image_filename TEXT,
+has_community_available_stats BOOL
+);
 
